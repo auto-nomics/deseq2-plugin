@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The pasilla fixtures remain in the autonomics repository (still-live
-# nodes-io Rust tests read them there); override with DESEQ2_FIXTURES.
-fixture_dir=${DESEQ2_FIXTURES:-/mnt/projects/autonomics_projects/autonomics/containers/deseq2/fixtures}
+# The pasilla fixtures live beside the plugin; override with DESEQ2_FIXTURES.
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+fixture_dir=${DESEQ2_FIXTURES:-$root/fixtures}
 counts="$fixture_dir/pasilla_gene_counts.tsv"
 metadata="$fixture_dir/pasilla_sample_metadata.tsv"
 
