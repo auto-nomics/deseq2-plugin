@@ -11,6 +11,8 @@ ARG CRAN_SNAPSHOT=2026-09-13
 ARG BIOCONDUCTOR_RELEASE=3.22
 ARG DESEQ2_VERSION=1.50.2
 ARG DESEQ2_SHA256=514f23ae8d274623d80978c30bfa1c6566acd98188bf1aa563970959ea59522f
+ARG APEGLM_VERSION=1.32.0
+ARG APEGLM_SHA256=90e1e687252378ce1ba2e11dd5bd6f1580e0359d45ba41cceec204faeef1c4d7
 
 ENV CRAN_SNAPSHOT=${CRAN_SNAPSHOT} \
     BIOCONDUCTOR_RELEASE=${BIOCONDUCTOR_RELEASE} \
@@ -54,6 +56,43 @@ RUN Rscript --vanilla -e ' \
     update = FALSE \
   ); \
   stopifnot(packageVersion("DESeq2") == Sys.getenv("DESEQ2_VERSION")); \
+  unlink(archive); \
+'
+
+# apeglm ships the adaptive shrinkage estimator the results contract uses
+# (lfc_shrink=apeglm, the DESeq2-recommended default); SummarizedExperiment
+# and GenomicRanges arrive with DESeq2 above.
+RUN Rscript --vanilla -e ' \
+  cran <- sprintf("https://packagemanager.posit.co/cran/__linux__/noble/%s", Sys.getenv("CRAN_SNAPSHOT")); \
+  options( \
+    repos = c(CRAN = cran), \
+    HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(), paste(getRversion(), R.version$platform, R.version$arch, R.version$os)) \
+  ); \
+  install.packages("BiocManager"); \
+  repositories <- BiocManager::repositories(version = Sys.getenv("BIOCONDUCTOR_RELEASE")); \
+  repositories <- repositories[names(repositories) != "CRAN"]; \
+  options(repos = c(CRAN = cran, repositories)); \
+  url <- sprintf( \
+    "https://bioconductor.org/packages/%s/bioc/src/contrib/apeglm_%s.tar.gz", \
+    Sys.getenv("BIOCONDUCTOR_RELEASE"), \
+    Sys.getenv("APEGLM_VERSION") \
+  ); \
+  archive <- tempfile(fileext = ".tar.gz"); \
+  download.file(url, archive, mode = "wb"); \
+  stopifnot( \
+    identical( \
+      digest::digest(archive, algo = "sha256", file = TRUE), \
+      Sys.getenv("APEGLM_SHA256") \
+    ) \
+  ); \
+  options(repos = c(CRAN = cran)); \
+  BiocManager::install( \
+    "apeglm", \
+    version = Sys.getenv("BIOCONDUCTOR_RELEASE"), \
+    ask = FALSE, \
+    update = FALSE \
+  ); \
+  stopifnot(packageVersion("apeglm") == Sys.getenv("APEGLM_VERSION")); \
   unlink(archive); \
 '
 

@@ -34,12 +34,19 @@ covariates <- parse_covariates(Sys.getenv("AUTONOMICS_DESEQ2_COVARIATES"))
 fit_type <- Sys.getenv("AUTONOMICS_DESEQ2_FIT_TYPE", "parametric")
 alpha <- as.numeric(Sys.getenv("AUTONOMICS_DESEQ2_ALPHA", "0.1"))
 threads <- as.integer(Sys.getenv("AUTONOMICS_DESEQ2_THREADS", "1"))
+lfc_shrink <- Sys.getenv("AUTONOMICS_DESEQ2_LFC_SHRINK", "apeglm")
 
 if (identical(condition_reference, condition_test)) {
   stop("condition_test and condition_reference must differ", call. = FALSE)
 }
 if (!fit_type %in% c("parametric", "local", "mean")) {
   stop("fit_type must be parametric, local, or mean", call. = FALSE)
+}
+if (!lfc_shrink %in% c("apeglm", "none")) {
+  stop("lfc_shrink must be apeglm or none", call. = FALSE)
+}
+if (lfc_shrink == "apeglm" && !requireNamespace("apeglm", quietly = TRUE)) {
+  stop("lfc_shrink=apeglm requires the apeglm package in the runtime image", call. = FALSE)
 }
 if (is.na(alpha) || !is.finite(alpha) || alpha <= 0 || alpha >= 1) {
   stop("alpha must be finite and lie strictly between 0 and 1", call. = FALSE)
@@ -191,6 +198,32 @@ result <- DESeq2::results(
   cooksCutoff = TRUE
 )
 
+# apeglm shrinkage: the DESeq2-recommended posterior estimate for effect
+# sizes. The Wald test columns (stat/pvalue/padj) stay from results();
+# log2FoldChange/lfcSE are replaced by the shrunk estimates. Set
+# lfc_shrink=none for the raw MLE table.
+if (lfc_shrink == "apeglm") {
+  shrink_coef <- sprintf("condition_%s_vs_%s", condition_test, condition_reference)
+  if (!shrink_coef %in% DESeq2::resultsNames(dds)) {
+    stop(
+      sprintf(
+        "shrinkage coefficient %s not found among design terms: %s",
+        shrink_coef,
+        paste(DESeq2::resultsNames(dds), collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+  shrunk <- DESeq2::lfcShrink(
+    dds,
+    coef = shrink_coef,
+    type = "apeglm",
+    quiet = TRUE
+  )
+  result$log2FoldChange <- shrunk$log2FoldChange
+  result$lfcSE <- shrunk$lfcSE
+}
+
 result_data <- as.data.frame(result)
 result_frame <- data.frame(
   gene_id = rownames(result_data),
@@ -256,6 +289,7 @@ report <- list(
     ),
     design = design_string,
     fit_type = fit_type,
+    lfc_shrink = lfc_shrink,
     alpha = alpha,
     independent_filtering = TRUE,
     cooks_cutoff = TRUE,
@@ -264,6 +298,7 @@ report <- list(
   engine = list(
     package = "DESeq2",
     version = as.character(packageVersion("DESeq2")),
+    apeglm_version = if (lfc_shrink == "apeglm") as.character(packageVersion("apeglm")) else NULL,
     bioconductor_release = Sys.getenv("BIOCONDUCTOR_RELEASE"),
     r_version = paste(R.version$major, R.version$minor, sep = ".")
   ),
@@ -299,3 +334,4 @@ jsonlite::write_json(
 
 cat("Retained by independent filtering:", sum(tested), "\n")
 cat("Significant at alpha", alpha, ":", sum(tested & padj < alpha), "\n")
+cat("log2FC shrinkage:", lfc_shrink, "\n")

@@ -2,9 +2,9 @@ schema_version = 1
 plugin_name = "deseq2"
 
 [image]
-reference = "ghcr.io/auto-nomics/autonomics/deseq2@sha256:8b2e2a78d87293e6cae6dbed2e283dff1dd8461a7f993cb347ca9810698b2b3e"
+reference = "ghcr.io/auto-nomics/autonomics/deseq2@sha256:9bd9a2e95a59d7a1725351b99fe188a71202a68a7255830213fe39a226e7864f"
 tag = "1.50.2"
-upstream = "Bioconductor DESeq2 1.50.2 @ d90821a (Bioconductor release 3.22, rocker/r-ver:4.5.3 base)"
+upstream = "Bioconductor DESeq2 1.50.2 @ d90821a + apeglm 1.32.0 (Bioconductor release 3.22, rocker/r-ver:4.5.3 base)"
 license = "LGPL-3.0-or-later"
 
 # Baked-runner family: the image carries /opt/autonomics/deseq2_runner.R and
@@ -30,9 +30,10 @@ sample, and a sample-metadata table whose first column is sample_id plus a
 condition column holding exactly the two submitted levels and any
 covariate columns. The node fits `~ <covariates> + condition` with the
 condition factor ordered reference-before-test, estimates and tests the
-model, and publishes the full result table, normalized counts, size
-factors, the fitted DESeqDataSet (RDS), and a run report with input/output
-checksums. No reference panel is required.
+model, shrinks log2 fold changes with apeglm (posterior estimates; set
+lfc_shrink=none for raw MLE coefficients), and publishes the full result
+table, normalized counts, size factors, the fitted DESeqDataSet (RDS), and
+a run report with input/output checksums. No reference panel is required.
 """
 timeout_secs = 3600
 artifact_prefix = "/artifacts/deseq2_de"
@@ -65,6 +66,13 @@ covariates = { type = "string", default = "", doc = "Comma-separated metadata co
 # v0 has no enum param type; the runner rejects values outside
 # parametric/local/mean with the legacy message.
 fit_type = { type = "string", default = "parametric", doc = "DESeq2 dispersion-fit type passed to DESeq2::DESeq(): parametric, local, or mean" }
+# v0 has no enum param type; the runner rejects values outside apeglm/none.
+# apeglm is the DESeq2-recommended shrinkage and the analysis default:
+# log2FoldChange/lfcSE become posterior (shrunk) estimates while the Wald
+# test columns (stat/pvalue/padj) stay exact. `none` delivers raw MLE
+# coefficients. Deliberate behavior change vs the pre-apeglm image, which
+# always delivered MLE values.
+lfc_shrink = { type = "string", default = "apeglm", doc = "log2FC shrinkage applied to the results table: apeglm (posterior estimates, default) or none (raw MLE coefficients)" }
 alpha = { type = "number", default = 0.1, exclusive_min = 0.0, exclusive_max = 1.0, doc = "Target FDR for independent filtering and significance reporting; strictly between 0 and 1" }
 threads = { type = "int", default = 1, min = 1.0, max = 1.0, doc = "Fixed at 1: the deterministic first contract forbids parallel execution" }
 
@@ -77,6 +85,7 @@ AUTONOMICS_DESEQ2_CONDITION_REFERENCE = "{{ condition_reference }}"
 AUTONOMICS_DESEQ2_CONDITION_TEST = "{{ condition_test }}"
 AUTONOMICS_DESEQ2_COVARIATES = "{{ covariates }}"
 AUTONOMICS_DESEQ2_FIT_TYPE = "{{ fit_type }}"
+AUTONOMICS_DESEQ2_LFC_SHRINK = "{{ lfc_shrink }}"
 AUTONOMICS_DESEQ2_ALPHA = "{{ alpha }}"
 AUTONOMICS_DESEQ2_THREADS = "{{ threads }}"
 

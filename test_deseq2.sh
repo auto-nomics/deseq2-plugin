@@ -22,7 +22,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # The pasilla fixtures stay in the autonomics repository: still-live
 # nodes-io Rust tests (wgcna, limma_voom, bulk_rnaseq) read them from
 # containers/deseq2/fixtures there.
-fixture_dir=${DESEQ2_FIXTURES:-/mnt/projects/autonomics_projects/autonomics/containers/deseq2/fixtures}
+fixture_dir=${DESEQ2_FIXTURES:-$root/fixtures}
 image=${DESEQ2_IMAGE:-localhost/atc/deseq2:1.50.2}
 build_image=${BUILD_IMAGE:-1}
 
@@ -65,6 +65,7 @@ runtime_flags=(
 
 run_analysis() {
   local output_dir=$1
+  local lfc_shrink=$2
   mkdir -p "$output_dir"
   podman run "${runtime_flags[@]}" \
     -v "$fixture_dir/pasilla_gene_counts.tsv:/input/counts.tsv:ro" \
@@ -81,6 +82,7 @@ run_analysis() {
     -e AUTONOMICS_DESEQ2_CONDITION_TEST=treated \
     -e AUTONOMICS_DESEQ2_COVARIATES=type \
     -e AUTONOMICS_DESEQ2_FIT_TYPE=parametric \
+    -e AUTONOMICS_DESEQ2_LFC_SHRINK="$lfc_shrink" \
     -e AUTONOMICS_DESEQ2_ALPHA=0.1 \
     -e AUTONOMICS_DESEQ2_THREADS=1 \
     "$image"
@@ -101,8 +103,9 @@ run_validator() {
     "$image" --vanilla -e "$1"
 }
 
-run_analysis "$scratch/first"
-run_analysis "$scratch/second"
+run_analysis "$scratch/first" apeglm
+run_analysis "$scratch/second" apeglm
+run_analysis "$scratch/mle" none
 
 for file in results.tsv normalized_counts.tsv size_factors.tsv deseq2_dataset.rds run_report.json; do
   first=$(sha256sum "$scratch/first/$file" | awk '{print $1}')
@@ -119,10 +122,36 @@ for file in results.tsv normalized_counts.tsv size_factors.tsv deseq2_dataset.rd
   fi
 done
 
+# MLE guard: lfc_shrink=none must reproduce the legacy raw coefficients.
 awk -F '\t' '
   BEGIN {
     expected_top_lfc = -3.12676061403957
     expected_pasilla_lfc = -1.8688179971032
+  }
+  $1 == "FBgn0003360" {
+    delta = $3 - expected_top_lfc
+    if (delta < 0) delta = -delta
+    if (delta > 1e-12) {
+      print "MLE guard failed for FBgn0003360: " $3 > "/dev/stderr"
+      exit 1
+    }
+  }
+  $1 == "FBgn0261552" {
+    delta = $3 - expected_pasilla_lfc
+    if (delta < 0) delta = -delta
+    if (delta > 1e-12) {
+      print "MLE guard failed for FBgn0261552: " $3 > "/dev/stderr"
+      exit 1
+    }
+  }
+' "$scratch/mle/results.tsv"
+
+# apeglm-shrunk estimates for the two guard genes (lfc_shrink=none pins
+# the raw MLE values above; this block pins the default shrunk table).
+awk -F '\t' '
+  BEGIN {
+    expected_top_lfc = -3.11894050870461
+    expected_pasilla_lfc = -1.84642335706769
   }
   $1 == "FBgn0003360" {
     delta = $3 - expected_top_lfc
@@ -155,6 +184,8 @@ stopifnot(
 stopifnot(nrow(size_factors) == 7L, all(is.finite(size_factors$size_factor)), all(size_factors$size_factor > 0))
 stopifnot(is(dds, "DESeqDataSet"))
 stopifnot(report$engine$package == "DESeq2", report$engine$version == "1.50.2")
+stopifnot(report$analysis$lfc_shrink == "apeglm")
+stopifnot(report$engine$apeglm_version == "1.32.0")
 stopifnot(report$dimensions$genes == 14599L, report$dimensions$samples == 7L)
 stopifnot(report$analysis$design == "~ type + condition")
 stopifnot(report$result$genes == 14599L)

@@ -140,7 +140,7 @@ read-only root filesystem.
 Published immutable image:
 
 ```text
-$AUTONOMICS_IMAGE_PREFIX/deseq2@sha256:8b2e2a78d87293e6cae6dbed2e283dff1dd8461a7f993cb347ca9810698b2b3e
+$AUTONOMICS_IMAGE_PREFIX/deseq2@sha256:9bd9a2e95a59d7a1725351b99fe188a71202a68a7255830213fe39a226e7864f
 ```
 
 The tag `$AUTONOMICS_IMAGE_PREFIX/deseq2:1.50.2` resolves to this digest. The
@@ -208,8 +208,8 @@ For a localhost-image real Podman test, first materialize the published digest
 under the equivalently named local repository:
 
 ```sh
-podman pull "$AUTONOMICS_IMAGE_PREFIX/deseq2@sha256:8b2e2a78d87293e6cae6dbed2e283dff1dd8461a7f993cb347ca9810698b2b3e"
-podman tag "$AUTONOMICS_IMAGE_PREFIX/deseq2@sha256:8b2e2a78d87293e6cae6dbed2e283dff1dd8461a7f993cb347ca9810698b2b3e" \
+podman pull "$AUTONOMICS_IMAGE_PREFIX/deseq2@sha256:9bd9a2e95a59d7a1725351b99fe188a71202a68a7255830213fe39a226e7864f"
+podman tag "$AUTONOMICS_IMAGE_PREFIX/deseq2@sha256:9bd9a2e95a59d7a1725351b99fe188a71202a68a7255830213fe39a226e7864f" \
   localhost/autonomics/deseq2:1.50.2
 AUTONOMICS_DESEQ2_IMAGE_ENDPOINT=localhost \
   cargo test -p nodes-io real_official_deseq2_runs_in_podman_and_matches_baseline -- --ignored

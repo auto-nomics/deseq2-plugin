@@ -58,8 +58,8 @@ byte-equal. Deliberate deltas:
   `["Rscript", "--vanilla", "/opt/autonomics/deseq2_runner.R"]` with
   `script: None`; the manifest expresses exactly that with
   `interpreter = "Rscript"` and `argv` (the DSL's baked-runner shape).
-  All parameters travel through the same six `AUTONOMICS_DESEQ2_*`
-  environment variables, so the pinned image needs no rebuild.
+  Parameters travel through the `AUTONOMICS_DESEQ2_*` environment
+  variables, so the pinned image needs no rebuild per invocation.
 - **Kind rename**: `deseq2_de_container` → `deseq2_de`; the artifact
   prefix follows the kind (`/artifacts/deseq2_de_container` →
   `/artifacts/deseq2_de`), the same rule the ldsc/mrpresso/mvmr
